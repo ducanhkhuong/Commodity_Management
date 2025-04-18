@@ -23,18 +23,23 @@ namespace SessionManager
         private string lastQrCode;
         private CancellationTokenSource cancellationTokenSource;
         
-        private ConcurrentQueue<string> processHandllerQueue;
+        private ConcurrentQueue<string> processPushQueue;
+        private ConcurrentQueue<string> processPullQueue;
         private ConcurrentQueue<string> processUIUXQueue;
+        private ConcurrentQueue<string> processForward;
         
         private Task HandllerPushTask;
         private Task HandllerUITask;
         private Task HandllerPullTask;
-        
+        private Task HandllerForward;
+
         public SessionManager()
         {
             InitializeComponent();
-            processHandllerQueue    = new ConcurrentQueue<string>();
+            processPushQueue        = new ConcurrentQueue<string>();
+            processPullQueue        = new ConcurrentQueue<string>();
             processUIUXQueue        = new ConcurrentQueue<string>();
+            processForward          = new ConcurrentQueue<string>();
             cancellationTokenSource = new CancellationTokenSource();
 
             try
@@ -53,10 +58,24 @@ namespace SessionManager
                 HandllerPushTask = Task.Run(() => ProcessPushHandller(cancellationTokenSource.Token));
                 HandllerUITask   = Task.Run(() => ProcessUI(cancellationTokenSource.Token));
                 HandllerPullTask = Task.Run(() => ProcessPullHandller(cancellationTokenSource.Token));
+                HandllerForward  = Task.Run(() => ProcessForwardHandller(cancellationTokenSource.Token));
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Lỗi khởi tạo camera hoặc barcodeReader: {ex.Message}");
+            }
+        }
+
+        private async void ProcessForwardHandller(CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if(processForward.TryDequeue(out string qrCode))
+                {
+                    //processPushQueue.Enqueue(result.Text);
+                    //processUIUXQueue.Enqueue(result.Text);
+                }
+                await Task.Delay(500);
             }
         }
 
@@ -74,7 +93,7 @@ namespace SessionManager
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (processHandllerQueue.TryDequeue(out string qrCode))
+                if (processPushQueue.TryDequeue(out string qrCode))
                 {
                     //xử lý mã qr , ép về byte hex , gửi dữ liệu đi 
                     Console.WriteLine($"ProcessHandller from queue: {qrCode}");
@@ -134,8 +153,7 @@ namespace SessionManager
                     if (result != null && result.Text != lastQrCode)
                     {
                         lastQrCode = result.Text;
-                        processHandllerQueue.Enqueue(result.Text);
-                        processUIUXQueue.Enqueue(result.Text);
+                        processForward.Enqueue(result.Text);
                     }
                 }
             }
